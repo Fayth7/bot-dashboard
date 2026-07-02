@@ -4,8 +4,8 @@ from fastapi import Depends
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 import os
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,10 +16,18 @@ SECRET_KEY = os.getenv("JWT_SECRET_KEY", "changeme")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 EXPIRY_HOURS = int(os.getenv("JWT_EXPIRY_HOURS", 24))
 
-DASHBOARD_USERNAME = os.getenv("DASHBOARD_USERNAME", "admin")
-DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "admin")
+USERS_FILE = os.path.join(os.path.dirname(__file__), "../../users.json")
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def load_users():
+    with open(USERS_FILE, "r") as f:
+        return json.load(f)["users"]
+
+def get_user(username: str):
+    users = load_users()
+    for user in users:
+        if user["username"] == username:
+            return user
+    return None
 
 def create_token(data: dict):
     to_encode = data.copy()
@@ -43,8 +51,8 @@ class Token(BaseModel):
 
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    if (form_data.username != DASHBOARD_USERNAME or
-            form_data.password != DASHBOARD_PASSWORD):
+    user = get_user(form_data.username)
+    if not user or user["password"] != form_data.password:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password"
