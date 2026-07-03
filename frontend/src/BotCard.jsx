@@ -1,12 +1,25 @@
-import { useState } from 'react';
-import { startBot, stopBot, getLogs } from './api';
+import { useState, useEffect } from 'react';
+import { startBot, stopBot, getLogs, getPnl } from './api';
 
 export default function BotCard({ bot, onStatusChange }) {
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState(null);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [pnl, setPnl] = useState(null);
 
   const isActive = bot.status === 'active';
+
+  useEffect(() => {
+    const fetchPnl = async () => {
+      try {
+        const data = await getPnl(bot.id);
+        setPnl(data);
+      } catch {
+        // PnL not available for this bot
+      }
+    };
+    fetchPnl();
+  }, [bot.id]);
 
   const handleToggle = async () => {
     setLoading(true);
@@ -17,7 +30,7 @@ export default function BotCard({ bot, onStatusChange }) {
         await startBot(bot.id);
       }
       onStatusChange();
-    } catch (err) {
+    } catch {
       alert(`Failed to ${isActive ? 'stop' : 'start'} bot`);
     } finally {
       setLoading(false);
@@ -42,6 +55,8 @@ export default function BotCard({ bot, onStatusChange }) {
 
   return (
     <div style={styles.card}>
+
+      {/* Header */}
       <div style={styles.header}>
         <div style={styles.info}>
           <div style={styles.avatar}>
@@ -66,6 +81,42 @@ export default function BotCard({ bot, onStatusChange }) {
         </div>
       </div>
 
+      {/* PnL Stats */}
+      {pnl && (
+        <div style={styles.pnlRow}>
+          <div style={styles.pnlItem}>
+            <p style={styles.pnlLabel}>Realised PnL</p>
+            <p style={{
+              ...styles.pnlValue,
+              color: pnl.total_pnl_usd >= 0 ? '#2e7d32' : '#c62828'
+            }}>
+              {pnl.total_pnl_usd >= 0 ? '+' : ''}${pnl.total_pnl_usd}
+            </p>
+          </div>
+          <div style={styles.pnlItem}>
+            <p style={styles.pnlLabel}>Win Rate</p>
+            <p style={styles.pnlValue}>{pnl.win_rate}%</p>
+          </div>
+          <div style={styles.pnlItem}>
+            <p style={styles.pnlLabel}>Closed</p>
+            <p style={styles.pnlValue}>{pnl.closed_trades}</p>
+          </div>
+          <div style={styles.pnlItem}>
+            <p style={styles.pnlLabel}>Deployed</p>
+            <p style={styles.pnlValue}>${pnl.capital_deployed}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Open Positions Badge */}
+      {pnl && pnl.open_positions > 0 && (
+        <div style={styles.openBadge}>
+          <span style={styles.openDot} />
+          {pnl.open_positions} open position{pnl.open_positions > 1 ? 's' : ''}
+        </div>
+      )}
+
+      {/* Action Buttons */}
       <div style={styles.actions}>
         <button
           style={{
@@ -95,6 +146,7 @@ export default function BotCard({ bot, onStatusChange }) {
         </button>
       </div>
 
+      {/* Log Viewer */}
       {logs !== null && (
         <div style={styles.logsWrap}>
           {logs.length === 0
@@ -164,6 +216,49 @@ const styles = {
   statusText: {
     fontSize: '0.75rem',
     fontWeight: '500',
+  },
+  pnlRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, 1fr)',
+    gap: '0.5rem',
+    background: '#f8f9fa',
+    borderRadius: '8px',
+    padding: '0.625rem',
+    marginBottom: '0.625rem',
+  },
+  pnlItem: {
+    textAlign: 'center',
+  },
+  pnlLabel: {
+    fontSize: '0.5625rem',
+    color: '#888',
+    margin: '0 0 2px',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+  },
+  pnlValue: {
+    fontSize: '0.8125rem',
+    fontWeight: '600',
+    color: '#1a1a1a',
+    margin: 0,
+  },
+  openBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+    fontSize: '0.75rem',
+    color: '#1565c0',
+    background: '#e3f2fd',
+    borderRadius: '6px',
+    padding: '4px 8px',
+    marginBottom: '0.625rem',
+    width: 'fit-content',
+  },
+  openDot: {
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+    background: '#1565c0',
   },
   actions: {
     display: 'flex',

@@ -2,7 +2,10 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
 from app.routers.auth import verify_token, get_user
 import subprocess
+import csv
+import json
 import os
+from datetime import datetime
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
@@ -30,10 +33,21 @@ def get_bot_status(service: str) -> str:
 
 def get_log_path(username: str, exchange: str, pair: str) -> str:
     pair_dir = f"{BOTS_BASE_PATH}/{username}/{exchange}/{pair}"
+    if not os.path.exists(pair_dir):
+        return None
+    candidates = []
     for f in os.listdir(pair_dir):
-        if f.endswith(".log") and "error" not in f.lower() and "audit" not in f.lower() and "trade" not in f.lower():
-            return os.path.join(pair_dir, f)
-    return None
+        if not f.endswith(".log"):
+            continue
+        if any(x in f.lower() for x in ["error", "audit", "trade", "hedge"]):
+            continue
+        full_path = os.path.join(pair_dir, f)
+        if os.path.isfile(full_path):
+            candidates.append((os.path.getmtime(full_path), full_path))
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    return candidates[0][1]
 
 def discover_bots(username: str) -> list:
     bots = []
@@ -109,9 +123,69 @@ def get_logs(bot_id: str, lines: int = 50, user: dict = Depends(get_current_user
     log_path = get_log_path(bot["username"], bot["exchange"], bot["pair"].lower())
     if not log_path:
         return {"logs": ["No log file found"]}
+    today = datetime.now().strftime("%Y-%m-%d")
     result = subprocess.run(
-        ["tail", f"-{lines}", log_path],
+        ["grep", today, log_path],
         capture_output=True,
         text=True
     )
-    return {"logs": result.stdout.splitlines()}
+    log_lines = result.stdout.splitlines()
+    return {"logs": log_lines[-lines:] if log_lines else ["No entries for today yet"]}
+
+@router.get("/{bot_id}/pnl")
+def get_pnl(bot_id: str, user: dict = Depends(get_current_user)):
+    bot = find_bot(bot_id, user["username"])
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+
+    trade_logs_path = (
+        f"{BOTS_BASE_PATH}/{bot['username']}"
+        f"/{bot['exchange']}/{bot['pair'].lower()}/trade_logs"
+    )
+
+    # Read trades.csv
+    csv_path = os.path.join(trade_logs_path, "trades.csv")
+    total_pnl = 0.0
+    closed_trades = 0
+    winning_trades = 0
+
+    if os.path.exists(csv_path):
+        with open(csv_path, "r") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row["action"].startswith("CLOSE"):
+                    pnl = float(row["pnl_usd"] or 0)
+                    total_pnl += pnl
+                    closed_trades += 1
+                    if pnl > 0:
+                        winning_trades += 1
+
+    # Read active_trades.json
+    json_path = os.path.join(trade_logs_path, "active_trades.json")
+    open_positions = 0
+    capital_deployed = 0.0
+
+    if os.path.exists(json_path):
+        with open(json_path, "r") as f:
+            data = json.load(f)
+            dual_trades = data.get("dual_trades", {})
+            for trade in dual_trades.values():
+                if not trade.get("long_closed"):
+                    open_positions += 1
+                if not trade.get("short_closed"):
+                    open_positions += 1
+                capital_deployed += float(trade.get("trade_size_usd", 0))
+
+    win_rate = (
+        round((winning_trades / closed_trades) * 100, 1)
+        if closed_trades > 0 else 0
+    )
+
+    return {
+        "total_pnl_usd": round(total_pnl, 2),
+        "closed_trades": closed_trades,
+        "winning_trades": winning_trades,
+        "win_rate": win_rate,
+        "open_positions": open_positions,
+        "capital_deployed": round(capital_deployed, 2)
+    }

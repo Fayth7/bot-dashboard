@@ -49,3 +49,8 @@ export const getLogs = async (botId, lines = 50) => {
   const res = await api.get(`/bots/${botId}/logs?lines=${lines}`);
   return res.data;
 };
+
+export const getPnl = async (botId) => {
+  const res = await api.get(`/bots/${botId}/pnl`);
+  return res.data;
+};
