@@ -1,56 +1,48 @@
-import axios from 'axios';
-
 const API_URL = '/api';
 
-const api = axios.create({ baseURL: API_URL });
+const getToken = () => localStorage.getItem('token');
 
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
-api.interceptors.response.use(
-  res => res,
-  err => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('username');
-      window.location.href = '/';
-    }
-    return Promise.reject(err);
+const request = async (path, options = {}) => {
+  const token = getToken();
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
+  if (res.status === 401) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    window.location.href = '/';
   }
-);
+  if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+  return res.json();
+};
 
 export const login = async (username, password) => {
   const form = new URLSearchParams();
   form.append('username', username);
   form.append('password', password);
-  const res = await api.post('/auth/login', form);
-  return res.data;
+  const res = await fetch(`${API_URL}/auth/login`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) throw new Error('Login failed');
+  return res.json();
 };
 
-export const getBots = async () => {
-  const res = await api.get('/bots/');
-  return res.data;
-};
+export const getBots = () => request('/bots/');
 
-export const startBot = async (botId) => {
-  const res = await api.post(`/bots/${botId}/start`);
-  return res.data;
-};
+export const startBot = (botId) =>
+  request(`/bots/${botId}/start`, { method: 'POST' });
 
-export const stopBot = async (botId) => {
-  const res = await api.post(`/bots/${botId}/stop`);
-  return res.data;
-};
+export const stopBot = (botId) =>
+  request(`/bots/${botId}/stop`, { method: 'POST' });
 
-export const getLogs = async (botId, lines = 50) => {
-  const res = await api.get(`/bots/${botId}/logs?lines=${lines}`);
-  return res.data;
-};
+export const getLogs = (botId, lines = 50) =>
+  request(`/bots/${botId}/logs?lines=${lines}`);
 
-export const getPnl = async (botId) => {
-  const res = await api.get(`/bots/${botId}/pnl`);
-  return res.data;
-};
+export const getPnl = (botId) =>
+  request(`/bots/${botId}/pnl`);
