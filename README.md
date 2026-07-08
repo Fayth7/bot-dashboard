@@ -96,7 +96,7 @@ cp .env.example .env
 - Docker and Docker Compose
 - Node.js 18+
 
-### Local setup (coming in Phase 3)
+### Local setup
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/bot-dashboard.git
