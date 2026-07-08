@@ -15,10 +15,12 @@ export default function BotCard({ bot, onStatusChange }) {
         const data = await getPnl(bot.id);
         setPnl(data);
       } catch {
-        // PnL not available for this bot
+        // PnL not available
       }
     };
     fetchPnl();
+    const interval = setInterval(fetchPnl, 30000);
+    return () => clearInterval(interval);
   }, [bot.id]);
 
   const handleToggle = async () => {
@@ -90,7 +92,7 @@ export default function BotCard({ bot, onStatusChange }) {
               ...styles.pnlValue,
               color: pnl.total_pnl_usd >= 0 ? '#2e7d32' : '#c62828'
             }}>
-              {pnl.total_pnl_usd >= 0 ? '+' : ''}${pnl.total_pnl_usd}
+              {pnl.total_pnl_usd >= 0 ? '+' : ''}{pnl.currency === 'BTC' ? '₿' : '$'}{pnl.total_pnl_usd}
             </p>
           </div>
           <div style={styles.pnlItem}>
@@ -98,12 +100,16 @@ export default function BotCard({ bot, onStatusChange }) {
             <p style={styles.pnlValue}>{pnl.win_rate}%</p>
           </div>
           <div style={styles.pnlItem}>
-            <p style={styles.pnlLabel}>Closed</p>
-            <p style={styles.pnlValue}>{pnl.closed_trades}</p>
+            <p style={styles.pnlLabel}>Long {pnl.currency === 'BTC' ? '₿' : '$'}</p>
+            <p style={{ ...styles.pnlValue, color: '#1565c0' }}>
+              {pnl.currency === 'BTC' ? '₿' : '$'}{pnl.long_deployed}
+            </p>
           </div>
           <div style={styles.pnlItem}>
-            <p style={styles.pnlLabel}>Deployed</p>
-            <p style={styles.pnlValue}>${pnl.capital_deployed}</p>
+            <p style={styles.pnlLabel}>Short {pnl.currency === 'BTC' ? '₿' : '$'}</p>
+            <p style={{ ...styles.pnlValue, color: '#6a1b9a' }}>
+              {pnl.currency === 'BTC' ? '₿' : '$'}{pnl.short_deployed}
+            </p>
           </div>
         </div>
       )}

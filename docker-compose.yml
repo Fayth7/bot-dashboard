@@ -1,0 +1,12 @@
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bot-dashboard-api
+    # Note: On this server the API runs via systemd (see docs/deployment.md)
+    # Docker is used for building and packaging only
+    # Use: docker compose build
+    # Deploy: sudo systemctl restart bot-dashboard-api
+    profiles:
+      - build-only

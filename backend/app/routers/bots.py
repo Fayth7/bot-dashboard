@@ -131,7 +131,6 @@ def get_logs(bot_id: str, lines: int = 50, user: dict = Depends(get_current_user
     )
     log_lines = result.stdout.splitlines()
     return {"logs": log_lines[-lines:] if log_lines else ["No entries for today yet"]}
-
 @router.get("/{bot_id}/pnl")
 def get_pnl(bot_id: str, user: dict = Depends(get_current_user)):
     bot = find_bot(bot_id, user["username"])
@@ -143,7 +142,7 @@ def get_pnl(bot_id: str, user: dict = Depends(get_current_user)):
         f"/{bot['exchange']}/{bot['pair'].lower()}/trade_logs"
     )
 
-    # Read trades.csv
+    # Read trades.csv for realised PnL
     csv_path = os.path.join(trade_logs_path, "trades.csv")
     total_pnl = 0.0
     closed_trades = 0
@@ -151,41 +150,70 @@ def get_pnl(bot_id: str, user: dict = Depends(get_current_user)):
 
     if os.path.exists(csv_path):
         with open(csv_path, "r") as f:
-            reader = csv.DictReader(f)
+            content = f.read().strip()
+        if content and not content.startswith("timestamp"):
+            content = f"timestamp,action,position_id,side,price,quantity,reason,pnl_usd,pnl_percent,current_price,equity,extra_info\n{content}"
+        if content:
+            reader = csv.DictReader(content.splitlines())
             for row in reader:
-                if row["action"].startswith("CLOSE"):
-                    pnl = float(row["pnl_usd"] or 0)
+                if row.get("action", "").startswith("CLOSE"):
+                    pnl = float(row.get("pnl_usd") or 0)
                     total_pnl += pnl
                     closed_trades += 1
                     if pnl > 0:
                         winning_trades += 1
 
-    # Read active_trades.json
+    # Read active_trades.json for open positions
     json_path = os.path.join(trade_logs_path, "active_trades.json")
+    long_deployed = 0.0
+    short_deployed = 0.0
     open_positions = 0
-    capital_deployed = 0.0
 
     if os.path.exists(json_path):
         with open(json_path, "r") as f:
             data = json.load(f)
             dual_trades = data.get("dual_trades", {})
             for trade in dual_trades.values():
-                if not trade.get("long_closed"):
+                long_pos = trade.get("long_position", {})
+                short_pos = trade.get("short_position", {})
+                long_closed = trade.get("long_closed", True)
+                short_closed = trade.get("short_closed", True)
+
+                if not long_closed and long_pos.get("status") == "OPEN":
+                    qty = float(long_pos.get("quantity", 0))
+                    price = float(long_pos.get("entry_price", 0))
+                    leverage = float(long_pos.get("leverage", 1))
+                    long_deployed += (qty * price) / leverage
                     open_positions += 1
-                if not trade.get("short_closed"):
+
+                if not short_closed and short_pos.get("status") == "OPEN":
+                    qty = float(short_pos.get("quantity", 0))
+                    price = float(short_pos.get("entry_price", 0))
+                    leverage = float(short_pos.get("leverage", 1))
+                    short_deployed += (qty * price) / leverage
                     open_positions += 1
-                capital_deployed += float(trade.get("trade_size_usd", 0))
 
     win_rate = (
         round((winning_trades / closed_trades) * 100, 1)
         if closed_trades > 0 else 0
     )
 
+    # Determine currency based on pair name
+    pair_upper = bot['pair'].upper()
+    if pair_upper.endswith('BTC'):
+        currency = 'BTC'
+        decimals = 8
+    else:
+        currency = 'USD'
+        decimals = 2
+
     return {
-        "total_pnl_usd": round(total_pnl, 2),
+        "total_pnl_usd": round(total_pnl, decimals),
         "closed_trades": closed_trades,
         "winning_trades": winning_trades,
         "win_rate": win_rate,
         "open_positions": open_positions,
-        "capital_deployed": round(capital_deployed, 2)
+        "long_deployed": round(long_deployed, decimals),
+        "short_deployed": round(short_deployed, decimals),
+        "currency": currency
     }
