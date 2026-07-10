@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
 from app.routers.auth import verify_token, get_user
 import subprocess
+import urllib.request
+import urllib.error
 import csv
 import json
 import os
@@ -12,6 +14,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 BOTS_BASE_PATH = "/home/smatbotsolutions/Tradingbots"
 EXCHANGES = ["Binance", "Bybit", "OKX"]
+BRIDGE_URL = os.getenv("BRIDGE_URL", "http://127.0.0.1:8002")
+BRIDGE_SECRET = os.getenv("BRIDGE_SECRET", "changeme")
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
     username = verify_token(token)
@@ -23,13 +27,28 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 def get_service_name(username: str, exchange: str, pair: str) -> str:
     return f"{exchange.lower()}-{username.lower()}-{pair.lower()}"
 
-def get_bot_status(service: str) -> str:
-    result = subprocess.run(
-        ["systemctl", "is-active", service],
-        capture_output=True,
-        text=True
+def bridge_request(method: str, path: str) -> dict:
+    url = f"{BRIDGE_URL}{path}"
+    req = urllib.request.Request(
+        url,
+        method=method,
+        headers={"X-Bridge-Key": BRIDGE_SECRET}
     )
-    return result.stdout.strip()
+    try:
+        with urllib.request.urlopen(req, timeout=5) as res:
+            return json.loads(res.read())
+    except urllib.error.HTTPError as e:
+        return {"success": False, "status": "unknown", "error": str(e)}
+    except Exception as e:
+        return {"success": False, "status": "unknown", "error": str(e)}
+
+def get_bot_status(service: str) -> str:
+    result = bridge_request("GET", f"/service/{service}/status")
+    return result.get("status", "unknown")
+
+def run_systemctl(action: str, service: str) -> bool:
+    result = bridge_request("POST", f"/service/{service}/{action}")
+    return result.get("success", False)
 
 def get_log_path(username: str, exchange: str, pair: str) -> str:
     pair_dir = f"{BOTS_BASE_PATH}/{username}/{exchange}/{pair}"
@@ -75,14 +94,6 @@ def discover_bots(username: str) -> list:
                 "status": get_bot_status(service)
             })
     return bots
-
-def run_systemctl(action: str, service: str) -> bool:
-    result = subprocess.run(
-        ["sudo", "systemctl", action, service],
-        capture_output=True,
-        text=True
-    )
-    return result.returncode == 0
 
 def find_bot(bot_id: str, username: str) -> dict:
     bots = discover_bots(username)
@@ -131,6 +142,7 @@ def get_logs(bot_id: str, lines: int = 50, user: dict = Depends(get_current_user
     )
     log_lines = result.stdout.splitlines()
     return {"logs": log_lines[-lines:] if log_lines else ["No entries for today yet"]}
+
 @router.get("/{bot_id}/pnl")
 def get_pnl(bot_id: str, user: dict = Depends(get_current_user)):
     bot = find_bot(bot_id, user["username"])
@@ -198,7 +210,6 @@ def get_pnl(bot_id: str, user: dict = Depends(get_current_user)):
         if closed_trades > 0 else 0
     )
 
-    # Determine currency based on pair name
     pair_upper = bot['pair'].upper()
     if pair_upper.endswith('BTC'):
         currency = 'BTC'

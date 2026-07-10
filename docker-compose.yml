@@ -4,9 +4,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: bot-dashboard-api
-    # Note: On this server the API runs via systemd (see docs/deployment.md)
-    # Docker is used for building and packaging only
-    # Use: docker compose build
-    # Deploy: sudo systemctl restart bot-dashboard-api
-    profiles:
-      - build-only
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - /home/smatbotsolutions/Tradingbots:/home/smatbotsolutions/Tradingbots:ro
+      - /home/smatbotsolutions/bot-dashboard/backend/users.json:/app/users.json
+      - /home/smatbotsolutions/bot-dashboard/backend/.env:/app/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - BRIDGE_URL=http://172.17.0.1:8002
+      - BRIDGE_SECRET=1234567654321
