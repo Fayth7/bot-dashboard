@@ -21,7 +21,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm install --prefer-offline
 
       - name: Build React app
         working-directory: frontend
@@ -64,15 +64,15 @@ jobs:
             frontend/build/ \
             ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:~/bot-dashboard/frontend/build/
 
-          # SSH into VM and restart API
+          # SSH into VM — pull latest code and restart Docker API
           ssh -i ~/.ssh/deploy_key \
             -o StrictHostKeyChecking=no \
             ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} \
-            "cd ~/bot-dashboard && git pull && sudo systemctl restart bot-dashboard-api && sudo systemctl reload nginx"
+            "cd ~/bot-dashboard && git pull && sudo docker compose up --build -d && sudo systemctl reload nginx"
 
       - name: Verify deployment
         run: |
           ssh -i ~/.ssh/deploy_key \
             -o StrictHostKeyChecking=no \
             ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} \
-            "sudo systemctl is-active bot-dashboard-api && echo 'API is running'"
+            "sudo docker compose ps | grep bot-dashboard-api && echo 'API container is running'"

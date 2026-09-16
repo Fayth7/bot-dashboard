@@ -70,6 +70,8 @@ WorkingDirectory=${BOT_DIR}
 ExecStart=${PYTHON} ${BOT_SCRIPT}
 Restart=on-failure
 RestartSec=10
+StandardOutput=append:${BOT_DIR}/${PAIR_LOWER}.log
+StandardError=append:${BOT_DIR}/errors.log
 
 [Install]
 WantedBy=multi-user.target
@@ -82,6 +84,7 @@ sudo systemctl daemon-reload
 echo "✓ Systemd reloaded"
 
 # Pre-create log files with correct ownership to avoid permission errors
+touch "${BOT_DIR}/${PAIR_LOWER}.log" "${BOT_DIR}/errors.log"
 
 # Enable service
 sudo systemctl enable "$SERVICE_NAME"

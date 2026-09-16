@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getBots } from './api';
 import BotCard from './BotCard';
+import DailyPnl from './DailyPnl';
 
 const EXCHANGES = ['OKX', 'Binance', 'Bybit'];
 
@@ -8,6 +9,8 @@ export default function Dashboard({ username, onLogout }) {
   const [bots, setBots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [search, setSearch] = useState('');
+  const [showStopped, setShowStopped] = useState(false);
 
   const fetchBots = useCallback(async () => {
     try {
@@ -33,16 +36,25 @@ export default function Dashboard({ username, onLogout }) {
     onLogout();
   };
 
-  const activeBots = bots.filter(b => b.status === 'active').length;
-  const stoppedBots = bots.filter(b => b.status !== 'active').length;
+  const activeBots = bots.filter(b => b.status === 'active');
+  const stoppedBots = bots.filter(b => b.status !== 'active');
 
-  const botsByExchange = (exchange) =>
-    bots.filter(b => b.exchange === exchange);
+  const filterBots = (list) =>
+    list.filter(b =>
+      b.pair.toLowerCase().includes(search.toLowerCase()) ||
+      b.exchange.toLowerCase().includes(search.toLowerCase())
+    );
+
+  const activeByExchange = (exchange) =>
+    filterBots(activeBots).filter(b => b.exchange === exchange);
+
+  const stoppedFiltered = filterBots(stoppedBots);
 
   return (
     <div style={styles.page}>
       <div style={styles.container}>
 
+        {/* Top Bar */}
         <div style={styles.topBar}>
           <div>
             <p style={styles.welcome}>Welcome back</p>
@@ -53,40 +65,101 @@ export default function Dashboard({ username, onLogout }) {
           </button>
         </div>
 
+        {/* Stats Row */}
         <div style={styles.statsRow}>
           <div style={styles.statCard}>
             <p style={styles.statLabel}>Running</p>
-            <p style={{ ...styles.statValue, color: '#2e7d32' }}>{activeBots}</p>
+            <p style={{ ...styles.statValue, color: '#2e7d32' }}>
+              {activeBots.length}
+            </p>
           </div>
-          <div style={styles.statCard}>
-            <p style={styles.statLabel}>Stopped</p>
-            <p style={{ ...styles.statValue, color: '#888' }}>{stoppedBots}</p>
+          <div
+            style={{
+              ...styles.statCard,
+              cursor: stoppedBots.length > 0 ? 'pointer' : 'default',
+              background: showStopped ? '#fff3e0' : '#fff',
+              border: showStopped ? '1px solid #ffcc80' : '1px solid transparent',
+            }}
+            onClick={() => stoppedBots.length > 0 && setShowStopped(!showStopped)}
+          >
+            <p style={styles.statLabel}>
+              Stopped {stoppedBots.length > 0 ? (showStopped ? '▲' : '▼') : ''}
+            </p>
+            <p style={{ ...styles.statValue, color: '#888' }}>
+              {stoppedBots.length}
+            </p>
           </div>
         </div>
 
+        {/* Search Bar */}
+        <div style={styles.searchWrap}>
+          <input
+            style={styles.searchInput}
+            placeholder="🔍 Search by pair or exchange..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          {search && (
+            <button
+              style={styles.clearBtn}
+              onClick={() => setSearch('')}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+	
+	{/* Daily PnL */}
+	<DailyPnl />
+        
+	{/* Stopped Bots Panel */}
+        {showStopped && (
+          <div style={styles.stoppedPanel}>
+            <p style={styles.stoppedHeader}>Stopped Bots</p>
+            {stoppedFiltered.length === 0 ? (
+              <p style={styles.emptyText}>No stopped bots match your search</p>
+            ) : (
+              stoppedFiltered.map(bot => (
+                <BotCard
+                  key={bot.id}
+                  bot={bot}
+                  onStatusChange={fetchBots}
+                />
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Active Bots by Exchange */}
         {loading ? (
           <p style={styles.loadingText}>Loading bots...</p>
         ) : (
-          EXCHANGES.map(exchange => (
-            <div key={exchange} style={styles.section}>
-              <p style={styles.sectionLabel}>{exchange}</p>
-              {botsByExchange(exchange).length === 0 ? (
-                <div style={styles.emptyBox}>
-                  <p style={styles.emptyText}>No bots on {exchange}</p>
-                </div>
-              ) : (
-                botsByExchange(exchange).map(bot => (
+          EXCHANGES.map(exchange => {
+            const exchangeBots = activeByExchange(exchange);
+            if (exchangeBots.length === 0) return null;
+            return (
+              <div key={exchange} style={styles.section}>
+                <p style={styles.sectionLabel}>{exchange}</p>
+                {exchangeBots.map(bot => (
                   <BotCard
                     key={bot.id}
                     bot={bot}
                     onStatusChange={fetchBots}
                   />
-                ))
-              )}
-            </div>
-          ))
+                ))}
+              </div>
+            );
+          })
         )}
 
+        {/* Empty state when search finds nothing */}
+        {!loading && filterBots(activeBots).length === 0 && search && (
+          <div style={styles.emptyBox}>
+            <p style={styles.emptyText}>No active bots match "{search}"</p>
+          </div>
+        )}
+
+        {/* Footer */}
         <p style={styles.footer}>
           {lastUpdated
             ? `Last updated ${lastUpdated.toLocaleTimeString()}`
@@ -138,12 +211,13 @@ const styles = {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
     gap: '0.625rem',
-    marginBottom: '1.25rem',
+    marginBottom: '0.75rem',
   },
   statCard: {
     background: '#fff',
     borderRadius: '10px',
     padding: '0.875rem 1rem',
+    transition: 'background 0.2s',
   },
   statLabel: {
     fontSize: '0.75rem',
@@ -154,6 +228,47 @@ const styles = {
     fontSize: '1.5rem',
     fontWeight: '600',
     margin: 0,
+  },
+  searchWrap: {
+    position: 'relative',
+    marginBottom: '1rem',
+  },
+  searchInput: {
+    width: '100%',
+    padding: '0.625rem 2.5rem 0.625rem 0.875rem',
+    fontSize: '0.875rem',
+    border: '1px solid #e0e0e0',
+    borderRadius: '10px',
+    background: '#fff',
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  clearBtn: {
+    position: 'absolute',
+    right: '0.625rem',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: 'none',
+    border: 'none',
+    color: '#888',
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+    padding: '0.25rem',
+  },
+  stoppedPanel: {
+    background: '#fff8f0',
+    border: '1px solid #ffcc80',
+    borderRadius: '12px',
+    padding: '0.875rem',
+    marginBottom: '1rem',
+  },
+  stoppedHeader: {
+    fontSize: '0.6875rem',
+    fontWeight: '600',
+    color: '#e65100',
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
+    margin: '0 0 0.75rem',
   },
   section: {
     marginBottom: '1rem',
