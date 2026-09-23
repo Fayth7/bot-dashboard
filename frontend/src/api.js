@@ -46,3 +46,8 @@ export const getLogs = (botId, lines = 50) =>
 
 export const getPnl = (botId) =>
   request(`/bots/${botId}/pnl`);
+
+export const getPairPnl = async () => {
+  const res = await request('/analytics/pair-pnl');
+  return res;
+};

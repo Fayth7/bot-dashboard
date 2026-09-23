@@ -2,9 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { getBots, getPairPnl } from './api';
 import BotCard from './BotCard';
 import DailyPnl from './DailyPnl';
-import PnlCalendar from './PnlCalendar';
-import AccountSummary from './AccountSummary';
-import DrawdownAlert from './DrawdownAlert';
 
 const EXCHANGES = ['OKX', 'Binance', 'Bybit'];
 
@@ -15,7 +12,6 @@ export default function Dashboard({ username, onLogout }) {
   const [search, setSearch] = useState('');
   const [showStopped, setShowStopped] = useState(false);
   const [pairPnl, setPairPnl] = useState({});
-  const [showCalendar, setShowCalendar] = useState(false);
 
   const fetchBots = useCallback(async () => {
     try {
@@ -74,7 +70,6 @@ export default function Dashboard({ username, onLogout }) {
     <div style={styles.page}>
       <div style={styles.container}>
 
-				<DrawdownAlert onAlertCount={(count) => document.title = count > 0 ? `(${count}) Bot Dashboard` : "Bot Dashboard"} />
         {/* Top Bar */}
         <div style={styles.topBar}>
           <div>
@@ -131,9 +126,7 @@ export default function Dashboard({ username, onLogout }) {
         </div>
 	
 	{/* Daily PnL */}
-				<AccountSummary />
-	<DailyPnl onOpenCalendar={() => setShowCalendar(true)} />
-	{showCalendar && <PnlCalendar onClose={() => setShowCalendar(false)} />}
+	<DailyPnl />
         
 	{/* Stopped Bots Panel */}
         {showStopped && (

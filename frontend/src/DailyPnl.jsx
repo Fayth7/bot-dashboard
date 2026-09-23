@@ -37,7 +37,7 @@ const ExchangeRow = ({ name, data }) => (
 const DayCard = ({ record, isToday }) => {
   const [expanded, setExpanded] = useState(isToday);
   const date = new Date(record.date);
-  const label = isToday ? 'Today' : date.toLocaleDateString('en', {
+  const label = date.toLocaleDateString('en', {
     weekday: 'short', month: 'short', day: 'numeric'
   });
 
@@ -82,7 +82,7 @@ const DayCard = ({ record, isToday }) => {
   );
 };
 
-export default function DailyPnl() {
+export default function DailyPnl({ onOpenCalendar }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
@@ -110,7 +110,12 @@ export default function DailyPnl() {
 
       {/* Header */}
       <div style={styles.cardHeader}>
-        <p style={styles.cardTitle}>Daily PnL</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <p style={styles.cardTitle}>Daily PnL · Latest: {data.today.date}</p>
+          <button style={styles.calendarBtn} onClick={onOpenCalendar}>
+            📅 Calendar
+          </button>
+        </div>
         <button
           style={styles.historyBtn}
           onClick={() => setShowHistory(!showHistory)}
@@ -120,7 +125,7 @@ export default function DailyPnl() {
       </div>
 
       {/* Today */}
-      <DayCard record={data.today} isToday={true} />
+      <DayCard record={data.today} isToday={false} />
 
       {/* Averages */}
       <div style={styles.avgSection}>
@@ -195,6 +200,15 @@ const styles = {
     textTransform: 'uppercase',
     letterSpacing: '0.06em',
     margin: 0,
+  },
+  calendarBtn: {
+    background: '#e3f2fd',
+    border: 'none',
+    borderRadius: '6px',
+    padding: '2px 8px',
+    fontSize: '0.75rem',
+    color: '#1565c0',
+    cursor: 'pointer',
   },
   historyBtn: {
     background: 'none',

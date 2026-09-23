@@ -5,3 +5,5 @@ passlib
 python-dotenv
 bcrypt
 python-multipart
+ccxt
+python-dotenv

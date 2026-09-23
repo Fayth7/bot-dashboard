@@ -209,8 +209,69 @@ def get_calendar(user: dict = Depends(get_current_user)):
 
 @router.get("/today")
 def get_today_pnl(user: dict = Depends(get_current_user)):
-    from app.services.account import get_today_pnl as compute_today_pnl
-    return compute_today_pnl(user["username"])
+    from datetime import date
+    import os
+
+    username = user["username"]
+    user_path = Path(f"{BOTS_BASE_PATH}/{username}")
+    today = date.today().isoformat()
+
+    exchanges = {}
+    total_pnl = 0.0
+    total_closes = 0
+
+    if not user_path.exists():
+        return {"date": today, "total_pnl": 0, "exchanges": {}}
+
+    for exchange_dir in user_path.iterdir():
+        if not exchange_dir.is_dir():
+            continue
+        exchange = exchange_dir.name
+        if exchange in ["Tracker", "Bybit", "Binance", "OKX"] is False:
+            continue
+
+        ex_pnl = 0.0
+        ex_closes = 0
+
+        for pair_dir in exchange_dir.iterdir():
+            if not pair_dir.is_dir():
+                continue
+            csv_path = pair_dir / "trade_logs" / "trades.csv"
+            if not csv_path.exists():
+                continue
+
+            with open(csv_path, "r") as f:
+                content = f.read().strip()
+            if not content:
+                continue
+            if not content.startswith("timestamp"):
+                content = f"timestamp,action,position_id,side,price,quantity,reason,pnl_usd,pnl_percent,current_price,equity,extra_info\n{content}"
+
+            reader = csv_module.DictReader(content.splitlines())
+            for row in reader:
+                if not row.get("timestamp", "").startswith(today):
+                    continue
+                if not row.get("action", "").startswith("CLOSE"):
+                    continue
+                pnl = float(row.get("pnl_usd") or 0)
+                ex_pnl += pnl
+                ex_closes += 1
+
+        if ex_closes > 0:
+            exchanges[exchange] = {
+                "pnl": round(ex_pnl, 2),
+                "closes": ex_closes,
+            }
+            total_pnl += ex_pnl
+            total_closes += ex_closes
+
+    return {
+        "date": today,
+        "total_pnl": round(total_pnl, 2),
+        "total_closes": total_closes,
+        "exchanges": exchanges,
+        "note": "Live running total from trade logs. Updates as trades close."
+    }
 
 @router.get("/account-summary")
 def get_account_summary_endpoint(user: dict = Depends(get_current_user)):

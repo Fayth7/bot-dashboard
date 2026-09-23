@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { startBot, stopBot, getLogs, getPnl } from './api';
+import { useState } from 'react';
+import { startBot, stopBot, getLogs } from './api';
 
 export default function BotCard({ bot, onStatusChange, pairPnlData = {} }) {
   const [loading, setLoading] = useState(false);
@@ -7,17 +7,6 @@ export default function BotCard({ bot, onStatusChange, pairPnlData = {} }) {
   const [logsLoading, setLogsLoading] = useState(false);
 
   const isActive = bot.status === 'active';
-  const [posPnl, setPosPnl] = useState(null);
-
-  useEffect(() => {
-    getPnl(bot.id)
-      .then(setPosPnl)
-      .catch(() => {});
-    const interval = setInterval(() => {
-      getPnl(bot.id).then(setPosPnl).catch(() => {});
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [bot.id]);
 
   // Look up pair PnL from tracker data
   const exchangeKey = bot.exchange === 'OKX' ? 'Okx' : bot.exchange;
@@ -85,32 +74,32 @@ export default function BotCard({ bot, onStatusChange, pairPnlData = {} }) {
       </div>
 
       {/* PnL Stats */}
-      {(pnl || posPnl) && (
+      {pnl && (
         <div style={styles.pnlRow}>
           <div style={styles.pnlItem}>
             <p style={styles.pnlLabel}>Realized PnL</p>
             <p style={{
               ...styles.pnlValue,
-              color: pnl && pnl.total_pnl >= 0 ? '#2e7d32' : '#c62828'
+              color: pnl.total_pnl >= 0 ? '#2e7d32' : '#c62828'
             }}>
-              {pnl ? `${pnl.total_pnl >= 0 ? '+' : ''}$${pnl.total_pnl}` : '—'}
+              {pnl.total_pnl >= 0 ? '+' : ''}${pnl.total_pnl}
             </p>
           </div>
           <div style={styles.pnlItem}>
-            <p style={styles.pnlLabel}>Long $</p>
+            <p style={styles.pnlLabel}>Closes</p>
+            <p style={styles.pnlValue}>{pnl.total_closes}</p>
+          </div>
+          <div style={styles.pnlItem}>
+            <p style={styles.pnlLabel}>Long cls</p>
             <p style={{ ...styles.pnlValue, color: '#1565c0' }}>
-              {posPnl ? `$${posPnl.long_deployed}` : '—'}
+              {pnl.long_closes}
             </p>
           </div>
           <div style={styles.pnlItem}>
-            <p style={styles.pnlLabel}>Short $</p>
+            <p style={styles.pnlLabel}>Short cls</p>
             <p style={{ ...styles.pnlValue, color: '#6a1b9a' }}>
-              {posPnl ? `$${posPnl.short_deployed}` : '—'}
+              {pnl.short_closes}
             </p>
-          </div>
-          <div style={styles.pnlItem}>
-            <p style={styles.pnlLabel}>Total closed</p>
-            <p style={styles.pnlValue}>{pnl ? pnl.total_closes : '—'}</p>
           </div>
         </div>
       )}
