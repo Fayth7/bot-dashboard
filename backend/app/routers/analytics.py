@@ -4,7 +4,8 @@ from app.routers.auth import verify_token, get_user
 from pathlib import Path
 import json
 import csv as csv_module
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+EAT = timezone(timedelta(hours=3))
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
@@ -254,7 +255,7 @@ def approve_alert(exchange: str, user: dict = Depends(get_current_user)):
         alert = json.load(f)
 
     alert["status"] = "approved"
-    alert["approved_at"] = datetime.now().isoformat()
+    alert["approved_at"] = datetime.now(EAT).isoformat()
 
     with open(alert_file, "w") as f:
         json.dump(alert, f, indent=2)
@@ -275,7 +276,7 @@ def reject_alert(exchange: str, user: dict = Depends(get_current_user)):
         alert = json.load(f)
 
     alert["status"] = "rejected"
-    alert["rejected_at"] = datetime.now().isoformat()
+    alert["rejected_at"] = datetime.now(EAT).isoformat()
 
     with open(alert_file, "w") as f:
         json.dump(alert, f, indent=2)

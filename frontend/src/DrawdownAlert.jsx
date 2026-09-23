@@ -119,15 +119,15 @@ const AlertCard = ({ alert, onAction }) => {
               </p>
             </div>
             <div style={styles.summaryItem}>
-              <p style={styles.summaryLabel}>Excess</p>
+              <p style={styles.summaryLabel}>Above Target</p>
               <p style={{ ...styles.summaryValue, color: '#c62828' }}>
                 -${alert.excess_usd?.toFixed(2)}
               </p>
             </div>
             <div style={styles.summaryItem}>
-              <p style={styles.summaryLabel}>Est. Recovery</p>
-              <p style={{ ...styles.summaryValue, color: '#2e7d32' }}>
-                +${totalRecovery.toFixed(2)}
+              <p style={styles.summaryLabel}>Loss to Realize</p>
+              <p style={{ ...styles.summaryValue, color: '#c62828' }}>
+                -${totalRecovery.toFixed(2)}
               </p>
             </div>
           </div>
@@ -150,11 +150,11 @@ const AlertCard = ({ alert, onAction }) => {
                   </div>
                   <div style={styles.cutRight}>
                     <p style={styles.cutDetail}>
-                      Reduce {cut.qty_to_reduce} of {cut.quantity} units
+                      Reduce ${((cut.qty_to_reduce / cut.quantity) * (cut.loss_usd / (cut.loss_pct / 100))).toFixed(2)} of ${(cut.loss_usd / (cut.loss_pct / 100)).toFixed(2)} margin
                     </p>
                     <p style={styles.cutPnl}>
                       Loss: ${cut.loss_usd} ({cut.loss_pct}%) ·
-                      Recovery: +${cut.expected_recovery}
+                      Loss to realize: -${cut.expected_recovery}
                     </p>
                   </div>
                 </div>
